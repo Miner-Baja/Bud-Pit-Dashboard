@@ -1,0 +1,25 @@
+<html>
+<head>
+<title>shared_buffer.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #2aacb8;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#191a1c">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+shared_buffer.py</font>
+</center></td></tr></table>
+<pre><span class="s0">from </span><span class="s1">collections </span><span class="s0">import </span><span class="s1">deque</span>
+
+<span class="s1">buffer_size </span><span class="s2">= </span><span class="s3">500 </span><span class="s4">#number of most recent packets to keep</span>
+<span class="s1">rolling_buffer </span><span class="s2">= </span><span class="s1">deque</span><span class="s2">(</span><span class="s1">maxlen</span><span class="s2">=</span><span class="s1">buffer_size</span><span class="s2">)</span>
+</pre>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<html>
+<head>
+<title>dashboard.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #7a7e85;}
+.s4 { color: #2aacb8;}
+.s5 { color: #6aab73;}
+</style>
+</head>
+<body bgcolor="#191a1c">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+dashboard.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">dash</span>
+<span class="s0">from </span><span class="s1">dash </span><span class="s0">import </span><span class="s1">dcc</span><span class="s2">, </span><span class="s1">html</span>
+<span class="s0">from </span><span class="s1">dash</span><span class="s2">.</span><span class="s1">dependencies </span><span class="s0">import </span><span class="s1">Input</span><span class="s2">, </span><span class="s1">Output</span>
+<span class="s0">import </span><span class="s1">plotly</span><span class="s2">.</span><span class="s1">graph_objs </span><span class="s0">as </span><span class="s1">go</span>
+<span class="s0">from </span><span class="s1">shared_buffer </span><span class="s0">import </span><span class="s1">rolling_buffer</span>
+<span class="s0">import </span><span class="s1">serial_reader</span>
+<span class="s0">import </span><span class="s1">time</span>
+<span class="s0">import </span><span class="s1">os</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># CONFIG VARIABLES</span>
+<span class="s3"># --------------------------</span>
+<span class="s1">TIME_WINDOW </span><span class="s2">= </span><span class="s4">60  </span><span class="s3"># seconds for graph display</span>
+<span class="s1">BACKGROUND_COLOR </span><span class="s2">= </span><span class="s5">&quot;#4b964f&quot;</span>
+<span class="s1">TEXT_COLOR </span><span class="s2">= </span><span class="s5">&quot;black&quot;</span>
+<span class="s1">BUTTON_INACTIVE_COLOR </span><span class="s2">= </span><span class="s5">&quot;#2d5a2f&quot;</span>
+<span class="s1">BUTTON_ACTIVE_COLOR </span><span class="s2">= </span><span class="s5">&quot;#7bc47f&quot;</span>
+
+<span class="s1">MAP_FOLDER </span><span class="s2">= </span><span class="s5">&quot;maps&quot;  </span><span class="s3"># folder where map images are stored</span>
+<span class="s1">MAP_CONFIG_FILE </span><span class="s2">= </span><span class="s5">&quot;map_configs.json&quot;  </span><span class="s3"># optional config for coordinates</span>
+
+<span class="s3"># Load map configs if file exists</span>
+<span class="s0">import </span><span class="s1">json</span>
+<span class="s0">if </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">exists</span><span class="s2">(</span><span class="s1">MAP_CONFIG_FILE</span><span class="s2">):</span>
+    <span class="s0">with </span><span class="s1">open</span><span class="s2">(</span><span class="s1">MAP_CONFIG_FILE</span><span class="s2">, </span><span class="s5">&quot;r&quot;</span><span class="s2">) </span><span class="s0">as </span><span class="s1">f</span><span class="s2">:</span>
+        <span class="s1">MAP_CONFIGS </span><span class="s2">= </span><span class="s1">json</span><span class="s2">.</span><span class="s1">load</span><span class="s2">(</span><span class="s1">f</span><span class="s2">)</span>
+<span class="s0">else</span><span class="s2">:</span>
+    <span class="s1">MAP_CONFIGS </span><span class="s2">= {}</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># DASH APP</span>
+<span class="s3"># --------------------------</span>
+<span class="s1">app </span><span class="s2">= </span><span class="s1">dash</span><span class="s2">.</span><span class="s1">Dash</span><span class="s2">(</span><span class="s1">__name__</span><span class="s2">)</span>
+
+<span class="s1">app</span><span class="s2">.</span><span class="s1">layout </span><span class="s2">= </span><span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">([</span>
+    <span class="s3"># ---------- TOP CONTROLS ----------</span>
+    <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">([</span>
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">([</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Label</span><span class="s2">(</span><span class="s5">&quot;Select COM Port:&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">, </span><span class="s5">&quot;marginRight&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">}),</span>
+            <span class="s1">dcc</span><span class="s2">.</span><span class="s1">Dropdown</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;com-port-dropdown&quot;</span><span class="s2">, </span><span class="s1">placeholder</span><span class="s2">=</span><span class="s5">&quot;Select COM Port&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;width&quot;</span><span class="s2">: </span><span class="s5">&quot;200px&quot;</span><span class="s2">, </span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;inline-block&quot;</span><span class="s2">}),</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Button</span><span class="s2">(</span><span class="s5">&quot;Connect&quot;</span><span class="s2">, </span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;connect-btn&quot;</span><span class="s2">, </span><span class="s1">n_clicks</span><span class="s2">=</span><span class="s4">0</span><span class="s2">,</span>
+                        <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;marginLeft&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;inline-block&quot;</span><span class="s2">})</span>
+        <span class="s2">], </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;inline-block&quot;</span><span class="s2">}),</span>
+
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">([</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Label</span><span class="s2">(</span><span class="s5">&quot;Select Map:&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">, </span><span class="s5">&quot;marginRight&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">}),</span>
+            <span class="s1">dcc</span><span class="s2">.</span><span class="s1">Dropdown</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;map-dropdown&quot;</span><span class="s2">,</span>
+                         <span class="s1">options</span><span class="s2">=[{</span><span class="s5">&quot;label&quot;</span><span class="s2">: </span><span class="s1">name</span><span class="s2">, </span><span class="s5">&quot;value&quot;</span><span class="s2">: </span><span class="s1">name</span><span class="s2">} </span><span class="s0">for </span><span class="s1">name </span><span class="s0">in </span><span class="s1">MAP_CONFIGS</span><span class="s2">.</span><span class="s1">keys</span><span class="s2">()],</span>
+                         <span class="s1">placeholder</span><span class="s2">=</span><span class="s5">&quot;Select Map&quot;</span><span class="s2">,</span>
+                         <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;width&quot;</span><span class="s2">: </span><span class="s5">&quot;200px&quot;</span><span class="s2">})</span>
+        <span class="s2">], </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;inline-block&quot;</span><span class="s2">, </span><span class="s5">&quot;float&quot;</span><span class="s2">: </span><span class="s5">&quot;right&quot;</span><span class="s2">})</span>
+    <span class="s2">], </span><span class="s1">style</span><span class="s2">={</span>
+        <span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">,</span>
+        <span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">,</span>
+        <span class="s5">&quot;position&quot;</span><span class="s2">: </span><span class="s5">&quot;relative&quot;</span><span class="s2">,</span>
+        <span class="s5">&quot;zIndex&quot;</span><span class="s2">: </span><span class="s4">10</span><span class="s2">,</span>
+        <span class="s5">&quot;color&quot;</span><span class="s2">: </span><span class="s1">TEXT_COLOR</span>
+    <span class="s2">}),</span>
+
+    <span class="s3"># ---------- CURRENT VALUES ----------</span>
+    <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">([</span>
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">H1</span><span class="s2">(</span><span class="s5">&quot;Live Vehicle Data&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;textAlign&quot;</span><span class="s2">: </span><span class="s5">&quot;center&quot;</span><span class="s2">, </span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">}),</span>
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">([</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;Speed&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">, </span><span class="s5">&quot;marginBottom&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;RPM&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">, </span><span class="s5">&quot;marginBottom&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;Voltage&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">, </span><span class="s5">&quot;marginBottom&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;Satellites&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">, </span><span class="s5">&quot;marginBottom&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+            <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;Status&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;fontWeight&quot;</span><span class="s2">: </span><span class="s5">&quot;bold&quot;</span><span class="s2">, </span><span class="s5">&quot;marginBottom&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+        <span class="s2">], </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;textAlign&quot;</span><span class="s2">: </span><span class="s5">&quot;center&quot;</span><span class="s2">})</span>
+    <span class="s2">], </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">, </span><span class="s5">&quot;color&quot;</span><span class="s2">: </span><span class="s1">TEXT_COLOR</span><span class="s2">, </span><span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;20px&quot;</span><span class="s2">, </span><span class="s5">&quot;marginTop&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">}),</span>
+
+    <span class="s3"># ---------- GRAPH TOGGLE BUTTONS ----------</span>
+    <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">([</span>
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">Button</span><span class="s2">(</span><span class="s5">&quot;Show/Hide Speed Graph&quot;</span><span class="s2">, </span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;toggle-speed-btn&quot;</span><span class="s2">, </span><span class="s1">n_clicks</span><span class="s2">=</span><span class="s4">0</span><span class="s2">,</span>
+                    <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BUTTON_INACTIVE_COLOR</span><span class="s2">, </span><span class="s5">&quot;color&quot;</span><span class="s2">: </span><span class="s5">&quot;white&quot;</span><span class="s2">, </span><span class="s5">&quot;margin&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">,</span>
+                           <span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;border&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;borderRadius&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">Button</span><span class="s2">(</span><span class="s5">&quot;Show/Hide RPM Graph&quot;</span><span class="s2">, </span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;toggle-rpm-btn&quot;</span><span class="s2">, </span><span class="s1">n_clicks</span><span class="s2">=</span><span class="s4">0</span><span class="s2">,</span>
+                    <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BUTTON_INACTIVE_COLOR</span><span class="s2">, </span><span class="s5">&quot;color&quot;</span><span class="s2">: </span><span class="s5">&quot;white&quot;</span><span class="s2">, </span><span class="s5">&quot;margin&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">,</span>
+                           <span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;border&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;borderRadius&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+        <span class="s1">html</span><span class="s2">.</span><span class="s1">Button</span><span class="s2">(</span><span class="s5">&quot;Show/Hide Voltage Graph&quot;</span><span class="s2">, </span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;toggle-voltage-btn&quot;</span><span class="s2">, </span><span class="s1">n_clicks</span><span class="s2">=</span><span class="s4">0</span><span class="s2">,</span>
+                    <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BUTTON_INACTIVE_COLOR</span><span class="s2">, </span><span class="s5">&quot;color&quot;</span><span class="s2">: </span><span class="s5">&quot;white&quot;</span><span class="s2">, </span><span class="s5">&quot;margin&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">,</span>
+                           <span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;border&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;borderRadius&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}),</span>
+    <span class="s2">], </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">, </span><span class="s5">&quot;textAlign&quot;</span><span class="s2">: </span><span class="s5">&quot;center&quot;</span><span class="s2">, </span><span class="s5">&quot;marginTop&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">}),</span>
+
+    <span class="s3"># ---------- GRAPH CONTAINERS ----------</span>
+    <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">dcc</span><span class="s2">.</span><span class="s1">Graph</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;speed-graph&quot;</span><span class="s2">), </span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;speed-graph-container&quot;</span><span class="s2">,</span>
+             <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">, </span><span class="s5">&quot;marginTop&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">}),</span>
+    <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">dcc</span><span class="s2">.</span><span class="s1">Graph</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;rpm-graph&quot;</span><span class="s2">), </span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;rpm-graph-container&quot;</span><span class="s2">,</span>
+             <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">, </span><span class="s5">&quot;marginTop&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">}),</span>
+    <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">dcc</span><span class="s2">.</span><span class="s1">Graph</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;voltage-graph&quot;</span><span class="s2">), </span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;voltage-graph-container&quot;</span><span class="s2">,</span>
+             <span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">, </span><span class="s5">&quot;marginTop&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">}),</span>
+
+    <span class="s3"># ---------- MAP IMAGE ----------</span>
+    <span class="s1">html</span><span class="s2">.</span><span class="s1">Div</span><span class="s2">(</span><span class="s1">html</span><span class="s2">.</span><span class="s1">Img</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;map-image&quot;</span><span class="s2">, </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;position&quot;</span><span class="s2">: </span><span class="s5">&quot;absolute&quot;</span><span class="s2">, </span><span class="s5">&quot;top&quot;</span><span class="s2">: </span><span class="s5">&quot;60px&quot;</span><span class="s2">, </span><span class="s5">&quot;right&quot;</span><span class="s2">: </span><span class="s5">&quot;20px&quot;</span><span class="s2">,</span>
+                                             <span class="s5">&quot;height&quot;</span><span class="s2">: </span><span class="s5">&quot;300px&quot;</span><span class="s2">, </span><span class="s5">&quot;border&quot;</span><span class="s2">: </span><span class="s5">&quot;2px solid black&quot;</span><span class="s2">})),</span>
+
+    <span class="s3"># ---------- INTERVAL ----------</span>
+    <span class="s1">dcc</span><span class="s2">.</span><span class="s1">Interval</span><span class="s2">(</span><span class="s1">id</span><span class="s2">=</span><span class="s5">&quot;update-interval&quot;</span><span class="s2">, </span><span class="s1">interval</span><span class="s2">=</span><span class="s4">1000</span><span class="s2">, </span><span class="s1">n_intervals</span><span class="s2">=</span><span class="s4">0</span><span class="s2">)</span>
+<span class="s2">], </span><span class="s1">style</span><span class="s2">={</span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">, </span><span class="s5">&quot;minHeight&quot;</span><span class="s2">: </span><span class="s5">&quot;100vh&quot;</span><span class="s2">})</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># COM PORT DROPDOWN AUTO UPDATE</span>
+<span class="s3"># --------------------------</span>
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;com-port-dropdown&quot;</span><span class="s2">, </span><span class="s5">&quot;options&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;update-interval&quot;</span><span class="s2">, </span><span class="s5">&quot;n_intervals&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">update_com_ports</span><span class="s2">(</span><span class="s1">_</span><span class="s2">):</span>
+    <span class="s1">ports </span><span class="s2">= </span><span class="s1">serial_reader</span><span class="s2">.</span><span class="s1">get_com_ports</span><span class="s2">()</span>
+    <span class="s0">return </span><span class="s2">[{</span><span class="s5">&quot;label&quot;</span><span class="s2">: </span><span class="s1">p</span><span class="s2">, </span><span class="s5">&quot;value&quot;</span><span class="s2">: </span><span class="s1">p</span><span class="s2">} </span><span class="s0">for </span><span class="s1">p </span><span class="s0">in </span><span class="s1">ports</span><span class="s2">]</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># CONNECT SERIAL CALLBACK</span>
+<span class="s3"># --------------------------</span>
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;connect-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;children&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;connect-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;n_clicks&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;com-port-dropdown&quot;</span><span class="s2">, </span><span class="s5">&quot;value&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">connect_serial</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">, </span><span class="s1">selected_port</span><span class="s2">):</span>
+    <span class="s0">if </span><span class="s1">n_clicks </span><span class="s2">== </span><span class="s4">0 </span><span class="s0">or not </span><span class="s1">selected_port</span><span class="s2">:</span>
+        <span class="s0">return </span><span class="s5">&quot;Connect&quot;</span>
+    <span class="s1">serial_reader</span><span class="s2">.</span><span class="s1">start_serial_reader</span><span class="s2">(</span><span class="s1">selected_port</span><span class="s2">)</span>
+    <span class="s0">return </span><span class="s5">f&quot;Connected to </span><span class="s0">{</span><span class="s1">selected_port</span><span class="s0">}</span><span class="s5">&quot;</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># GRAPH TOGGLE CALLBACKS</span>
+<span class="s3"># --------------------------</span>
+<span class="s0">def </span><span class="s1">toggle_graph_style</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">):</span>
+    <span class="s0">if </span><span class="s1">n_clicks </span><span class="s2">% </span><span class="s4">2 </span><span class="s2">== </span><span class="s4">1</span><span class="s2">:</span>
+        <span class="s0">return </span><span class="s2">{</span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;block&quot;</span><span class="s2">, </span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">}, </span><span class="s1">\</span>
+               <span class="s2">{</span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BUTTON_ACTIVE_COLOR</span><span class="s2">, </span><span class="s5">&quot;color&quot;</span><span class="s2">: </span><span class="s5">&quot;white&quot;</span><span class="s2">, </span><span class="s5">&quot;margin&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">,</span>
+                <span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;border&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;borderRadius&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}</span>
+    <span class="s0">return </span><span class="s2">{</span><span class="s5">&quot;display&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BACKGROUND_COLOR</span><span class="s2">}, </span><span class="s1">\</span>
+           <span class="s2">{</span><span class="s5">&quot;backgroundColor&quot;</span><span class="s2">: </span><span class="s1">BUTTON_INACTIVE_COLOR</span><span class="s2">, </span><span class="s5">&quot;color&quot;</span><span class="s2">: </span><span class="s5">&quot;white&quot;</span><span class="s2">, </span><span class="s5">&quot;margin&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">,</span>
+            <span class="s5">&quot;padding&quot;</span><span class="s2">: </span><span class="s5">&quot;10px&quot;</span><span class="s2">, </span><span class="s5">&quot;border&quot;</span><span class="s2">: </span><span class="s5">&quot;none&quot;</span><span class="s2">, </span><span class="s5">&quot;borderRadius&quot;</span><span class="s2">: </span><span class="s5">&quot;5px&quot;</span><span class="s2">}</span>
+
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;speed-graph-container&quot;</span><span class="s2">, </span><span class="s5">&quot;style&quot;</span><span class="s2">),</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;toggle-speed-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;style&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;toggle-speed-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;n_clicks&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">toggle_speed</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">):</span>
+    <span class="s0">return </span><span class="s1">toggle_graph_style</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">)</span>
+
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;rpm-graph-container&quot;</span><span class="s2">, </span><span class="s5">&quot;style&quot;</span><span class="s2">),</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;toggle-rpm-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;style&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;toggle-rpm-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;n_clicks&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">toggle_rpm</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">):</span>
+    <span class="s0">return </span><span class="s1">toggle_graph_style</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">)</span>
+
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;voltage-graph-container&quot;</span><span class="s2">, </span><span class="s5">&quot;style&quot;</span><span class="s2">),</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;toggle-voltage-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;style&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;toggle-voltage-btn&quot;</span><span class="s2">, </span><span class="s5">&quot;n_clicks&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">toggle_voltage</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">):</span>
+    <span class="s0">return </span><span class="s1">toggle_graph_style</span><span class="s2">(</span><span class="s1">n_clicks</span><span class="s2">)</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># HELPER FOR RECENT DATA</span>
+<span class="s3"># --------------------------</span>
+<span class="s0">def </span><span class="s1">get_recent_data</span><span class="s2">():</span>
+    <span class="s1">buffer_copy </span><span class="s2">= </span><span class="s1">list</span><span class="s2">(</span><span class="s1">rolling_buffer</span><span class="s2">)</span>
+    <span class="s0">if not </span><span class="s1">buffer_copy</span><span class="s2">:</span>
+        <span class="s0">return </span><span class="s2">[]</span>
+    <span class="s1">now </span><span class="s2">= </span><span class="s1">buffer_copy</span><span class="s2">[-</span><span class="s4">1</span><span class="s2">][</span><span class="s5">&quot;timestamp&quot;</span><span class="s2">]</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">d </span><span class="s0">for </span><span class="s1">d </span><span class="s0">in </span><span class="s1">buffer_copy </span><span class="s0">if </span><span class="s1">now </span><span class="s2">- </span><span class="s1">d</span><span class="s2">[</span><span class="s5">&quot;timestamp&quot;</span><span class="s2">] &lt;= </span><span class="s1">TIME_WINDOW</span><span class="s2">]</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># GRAPH CREATION</span>
+<span class="s3"># --------------------------</span>
+<span class="s0">def </span><span class="s1">create_graph</span><span class="s2">(</span><span class="s1">recent</span><span class="s2">, </span><span class="s1">y_field</span><span class="s2">, </span><span class="s1">y_label</span><span class="s2">, </span><span class="s1">line_name</span><span class="s2">):</span>
+    <span class="s0">if not </span><span class="s1">recent</span><span class="s2">:</span>
+        <span class="s0">return </span><span class="s1">go</span><span class="s2">.</span><span class="s1">Figure</span><span class="s2">()</span>
+    <span class="s1">t0 </span><span class="s2">= </span><span class="s1">recent</span><span class="s2">[</span><span class="s4">0</span><span class="s2">][</span><span class="s5">&quot;timestamp&quot;</span><span class="s2">]</span>
+    <span class="s1">times </span><span class="s2">= [</span><span class="s1">int</span><span class="s2">(</span><span class="s1">d</span><span class="s2">[</span><span class="s5">&quot;timestamp&quot;</span><span class="s2">] - </span><span class="s1">t0</span><span class="s2">) </span><span class="s0">for </span><span class="s1">d </span><span class="s0">in </span><span class="s1">recent</span><span class="s2">]</span>
+    <span class="s1">values </span><span class="s2">= [</span><span class="s1">d</span><span class="s2">[</span><span class="s1">y_field</span><span class="s2">] </span><span class="s0">for </span><span class="s1">d </span><span class="s0">in </span><span class="s1">recent</span><span class="s2">]</span>
+    <span class="s1">fig </span><span class="s2">= </span><span class="s1">go</span><span class="s2">.</span><span class="s1">Figure</span><span class="s2">(</span><span class="s1">data</span><span class="s2">=[</span><span class="s1">go</span><span class="s2">.</span><span class="s1">Scatter</span><span class="s2">(</span><span class="s1">x</span><span class="s2">=</span><span class="s1">times</span><span class="s2">, </span><span class="s1">y</span><span class="s2">=</span><span class="s1">values</span><span class="s2">, </span><span class="s1">mode</span><span class="s2">=</span><span class="s5">&quot;lines&quot;</span><span class="s2">, </span><span class="s1">name</span><span class="s2">=</span><span class="s1">line_name</span><span class="s2">)])</span>
+    <span class="s1">fig</span><span class="s2">.</span><span class="s1">update_layout</span><span class="s2">(</span>
+        <span class="s1">xaxis_title</span><span class="s2">=</span><span class="s5">&quot;Time (s)&quot;</span><span class="s2">,</span>
+        <span class="s1">yaxis_title</span><span class="s2">=</span><span class="s1">y_label</span><span class="s2">,</span>
+        <span class="s1">xaxis</span><span class="s2">=</span><span class="s1">dict</span><span class="s2">(</span><span class="s1">dtick</span><span class="s2">=</span><span class="s4">1</span><span class="s2">),</span>
+        <span class="s1">margin</span><span class="s2">=</span><span class="s1">dict</span><span class="s2">(</span><span class="s1">l</span><span class="s2">=</span><span class="s4">40</span><span class="s2">, </span><span class="s1">r</span><span class="s2">=</span><span class="s4">20</span><span class="s2">, </span><span class="s1">t</span><span class="s2">=</span><span class="s4">30</span><span class="s2">, </span><span class="s1">b</span><span class="s2">=</span><span class="s4">40</span><span class="s2">),</span>
+        <span class="s1">paper_bgcolor</span><span class="s2">=</span><span class="s1">BACKGROUND_COLOR</span><span class="s2">,</span>
+        <span class="s1">plot_bgcolor</span><span class="s2">=</span><span class="s5">&quot;white&quot;</span><span class="s2">,</span>
+        <span class="s1">font</span><span class="s2">=</span><span class="s1">dict</span><span class="s2">(</span><span class="s1">color</span><span class="s2">=</span><span class="s1">TEXT_COLOR</span><span class="s2">, </span><span class="s1">family</span><span class="s2">=</span><span class="s5">&quot;Arial&quot;</span><span class="s2">, </span><span class="s1">size</span><span class="s2">=</span><span class="s4">14</span><span class="s2">)</span>
+    <span class="s2">)</span>
+    <span class="s0">return </span><span class="s1">fig</span>
+
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;speed-graph&quot;</span><span class="s2">, </span><span class="s5">&quot;figure&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;update-interval&quot;</span><span class="s2">, </span><span class="s5">&quot;n_intervals&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">update_speed_graph</span><span class="s2">(</span><span class="s1">_</span><span class="s2">):</span>
+    <span class="s0">return </span><span class="s1">create_graph</span><span class="s2">(</span><span class="s1">get_recent_data</span><span class="s2">(), </span><span class="s5">&quot;speed&quot;</span><span class="s2">, </span><span class="s5">&quot;Speed (mph)&quot;</span><span class="s2">, </span><span class="s5">&quot;Speed&quot;</span><span class="s2">)</span>
+
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;rpm-graph&quot;</span><span class="s2">, </span><span class="s5">&quot;figure&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;update-interval&quot;</span><span class="s2">, </span><span class="s5">&quot;n_intervals&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">update_rpm_graph</span><span class="s2">(</span><span class="s1">_</span><span class="s2">):</span>
+    <span class="s0">return </span><span class="s1">create_graph</span><span class="s2">(</span><span class="s1">get_recent_data</span><span class="s2">(), </span><span class="s5">&quot;rpm&quot;</span><span class="s2">, </span><span class="s5">&quot;RPM&quot;</span><span class="s2">, </span><span class="s5">&quot;RPM&quot;</span><span class="s2">)</span>
+
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;voltage-graph&quot;</span><span class="s2">, </span><span class="s5">&quot;figure&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;update-interval&quot;</span><span class="s2">, </span><span class="s5">&quot;n_intervals&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">update_voltage_graph</span><span class="s2">(</span><span class="s1">_</span><span class="s2">):</span>
+    <span class="s0">return </span><span class="s1">create_graph</span><span class="s2">(</span><span class="s1">get_recent_data</span><span class="s2">(), </span><span class="s5">&quot;voltage&quot;</span><span class="s2">, </span><span class="s5">&quot;Voltage (V)&quot;</span><span class="s2">, </span><span class="s5">&quot;Voltage&quot;</span><span class="s2">)</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># CURRENT VALUE UPDATES</span>
+<span class="s3"># --------------------------</span>
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;Speed&quot;</span><span class="s2">, </span><span class="s5">&quot;children&quot;</span><span class="s2">),</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;RPM&quot;</span><span class="s2">, </span><span class="s5">&quot;children&quot;</span><span class="s2">),</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;Voltage&quot;</span><span class="s2">, </span><span class="s5">&quot;children&quot;</span><span class="s2">),</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;Satellites&quot;</span><span class="s2">, </span><span class="s5">&quot;children&quot;</span><span class="s2">),</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;Status&quot;</span><span class="s2">, </span><span class="s5">&quot;children&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;update-interval&quot;</span><span class="s2">, </span><span class="s5">&quot;n_intervals&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">update_current_values</span><span class="s2">(</span><span class="s1">_</span><span class="s2">):</span>
+    <span class="s0">if not </span><span class="s1">rolling_buffer</span><span class="s2">:</span>
+        <span class="s0">return </span><span class="s5">&quot;Speed: --&quot;</span><span class="s2">, </span><span class="s5">&quot;RPM: --&quot;</span><span class="s2">, </span><span class="s5">&quot;Voltage: --&quot;</span><span class="s2">, </span><span class="s5">&quot;Satellites: --&quot;</span><span class="s2">, </span><span class="s5">&quot;Status: --&quot;</span>
+    <span class="s1">latest </span><span class="s2">= </span><span class="s1">rolling_buffer</span><span class="s2">[-</span><span class="s4">1</span><span class="s2">]</span>
+    <span class="s0">return </span><span class="s2">(</span><span class="s5">f&quot;Speed: </span><span class="s0">{</span><span class="s1">latest</span><span class="s2">[</span><span class="s5">'speed'</span><span class="s2">]</span><span class="s0">:</span><span class="s5">.2f</span><span class="s0">} </span><span class="s5">mph&quot;</span><span class="s2">,</span>
+            <span class="s5">f&quot;RPM: </span><span class="s0">{</span><span class="s1">latest</span><span class="s2">[</span><span class="s5">'rpm'</span><span class="s2">]</span><span class="s0">:</span><span class="s5">.2f</span><span class="s0">}</span><span class="s5">&quot;</span><span class="s2">,</span>
+            <span class="s5">f&quot;Voltage: </span><span class="s0">{</span><span class="s1">latest</span><span class="s2">[</span><span class="s5">'voltage'</span><span class="s2">]</span><span class="s0">:</span><span class="s5">.2f</span><span class="s0">} </span><span class="s5">V&quot;</span><span class="s2">,</span>
+            <span class="s5">f&quot;Satellites: </span><span class="s0">{</span><span class="s1">latest</span><span class="s2">[</span><span class="s5">'satellites'</span><span class="s2">]</span><span class="s0">}</span><span class="s5">&quot;</span><span class="s2">,</span>
+            <span class="s5">f&quot;Status: </span><span class="s0">{</span><span class="s1">latest</span><span class="s2">[</span><span class="s5">'status'</span><span class="s2">]</span><span class="s0">}</span><span class="s5">&quot;</span><span class="s2">)</span>
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># MAP IMAGE CALLBACK</span>
+<span class="s3"># --------------------------</span>
+<span class="s2">@</span><span class="s1">app</span><span class="s2">.</span><span class="s1">callback</span><span class="s2">(</span>
+    <span class="s1">Output</span><span class="s2">(</span><span class="s5">&quot;map-image&quot;</span><span class="s2">, </span><span class="s5">&quot;src&quot;</span><span class="s2">),</span>
+    <span class="s1">Input</span><span class="s2">(</span><span class="s5">&quot;map-dropdown&quot;</span><span class="s2">, </span><span class="s5">&quot;value&quot;</span><span class="s2">)</span>
+<span class="s2">)</span>
+<span class="s0">def </span><span class="s1">update_map_image</span><span class="s2">(</span><span class="s1">selected_map</span><span class="s2">):</span>
+    <span class="s0">if not </span><span class="s1">selected_map</span><span class="s2">:</span>
+        <span class="s0">return </span><span class="s5">&quot;&quot;</span>
+    <span class="s1">image_path </span><span class="s2">= </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">join</span><span class="s2">(</span><span class="s1">MAP_FOLDER</span><span class="s2">, </span><span class="s1">MAP_CONFIGS</span><span class="s2">[</span><span class="s1">selected_map</span><span class="s2">][</span><span class="s5">&quot;image&quot;</span><span class="s2">])</span>
+    <span class="s0">if not </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">exists</span><span class="s2">(</span><span class="s1">image_path</span><span class="s2">):</span>
+        <span class="s0">return </span><span class="s5">&quot;&quot;</span>
+    <span class="s0">return </span><span class="s1">app</span><span class="s2">.</span><span class="s1">get_asset_url</span><span class="s2">(</span><span class="s1">image_path</span><span class="s2">)  </span><span class="s3"># Ensure the image is in the assets folder</span>
+
+
+<span class="s3"># --------------------------</span>
+<span class="s3"># RUN APP</span>
+<span class="s3"># --------------------------</span>
+<span class="s0">if </span><span class="s1">__name__ </span><span class="s2">== </span><span class="s5">&quot;__main__&quot;</span><span class="s2">:</span>
+    <span class="s1">app</span><span class="s2">.</span><span class="s1">run_server</span><span class="s2">(</span><span class="s1">debug</span><span class="s2">=</span><span class="s0">False</span><span class="s2">)</span>
+</pre>
+</body>
+</html>

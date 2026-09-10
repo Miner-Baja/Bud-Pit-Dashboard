@@ -1,0 +1,29 @@
+<html>
+<head>
+<title>Main.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+</style>
+</head>
+<body bgcolor="#191a1c">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+Main.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">dashboard</span>
+<span class="s0">import </span><span class="s1">webbrowser</span>
+
+<span class="s0">if </span><span class="s1">__name__ </span><span class="s2">== </span><span class="s3">&quot;__main__&quot;</span><span class="s2">:</span>
+    <span class="s4"># Open the dashboard in the browser automatically</span>
+    <span class="s1">webbrowser</span><span class="s2">.</span><span class="s1">open</span><span class="s2">(</span><span class="s3">&quot;http://127.0.0.1:8050/&quot;</span><span class="s2">)</span>
+
+    <span class="s4"># Run the Dash app</span>
+    <span class="s1">dashboard</span><span class="s2">.</span><span class="s1">app</span><span class="s2">.</span><span class="s1">run</span><span class="s2">(</span><span class="s1">debug</span><span class="s2">=</span><span class="s0">False</span><span class="s2">)</span></pre>
+</body>
+</html>

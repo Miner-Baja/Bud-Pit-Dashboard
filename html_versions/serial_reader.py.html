@@ -1,0 +1,106 @@
+<html>
+<head>
+<title>serial_reader.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #2aacb8;}
+</style>
+</head>
+<body bgcolor="#191a1c">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+serial_reader.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">serial</span>
+<span class="s0">import </span><span class="s1">serial</span><span class="s2">.</span><span class="s1">tools</span><span class="s2">.</span><span class="s1">list_ports</span>
+<span class="s0">import </span><span class="s1">threading</span>
+<span class="s0">import </span><span class="s1">time</span>
+<span class="s0">import </span><span class="s1">json</span>
+<span class="s0">from </span><span class="s1">shared_buffer </span><span class="s0">import </span><span class="s1">rolling_buffer</span>
+
+<span class="s1">serial_inst </span><span class="s2">= </span><span class="s0">None</span>
+<span class="s1">serial_thread_running </span><span class="s2">= </span><span class="s0">False</span>
+
+<span class="s1">log_filename </span><span class="s2">= </span><span class="s3">&quot;lora_serial_log.jsonl&quot;</span>
+
+
+<span class="s0">def </span><span class="s1">start_serial_reader</span><span class="s2">(</span><span class="s1">port</span><span class="s2">, </span><span class="s1">baudrate</span><span class="s2">=</span><span class="s4">115200</span><span class="s2">):</span>
+    <span class="s0">global </span><span class="s1">serial_inst</span><span class="s2">, </span><span class="s1">serial_thread_running</span>
+
+    <span class="s0">if </span><span class="s1">serial_thread_running</span><span class="s2">:</span>
+        <span class="s1">print</span><span class="s2">(</span><span class="s3">&quot;Serial reader already running&quot;</span><span class="s2">)</span>
+        <span class="s0">return</span>
+
+    <span class="s0">try</span><span class="s2">:</span>
+        <span class="s1">serial_inst </span><span class="s2">= </span><span class="s1">serial</span><span class="s2">.</span><span class="s1">Serial</span><span class="s2">(</span>
+            <span class="s1">port</span><span class="s2">=</span><span class="s1">port</span><span class="s2">,</span>
+            <span class="s1">baudrate</span><span class="s2">=</span><span class="s1">baudrate</span><span class="s2">,</span>
+            <span class="s1">timeout</span><span class="s2">=</span><span class="s4">1</span>
+        <span class="s2">)</span>
+        <span class="s1">serial_thread_running </span><span class="s2">= </span><span class="s0">True</span>
+        <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;Connected to </span><span class="s0">{</span><span class="s1">port</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+
+    <span class="s0">except </span><span class="s1">serial</span><span class="s2">.</span><span class="s1">SerialException </span><span class="s0">as </span><span class="s1">e</span><span class="s2">:</span>
+        <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;FAILED to open </span><span class="s0">{</span><span class="s1">port</span><span class="s0">}</span><span class="s3">: </span><span class="s0">{</span><span class="s1">e</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+        <span class="s0">return</span>
+
+    <span class="s0">def </span><span class="s1">serial_reader</span><span class="s2">():</span>
+        <span class="s0">global </span><span class="s1">serial_thread_running</span>
+        <span class="s0">while True</span><span class="s2">:</span>
+            <span class="s0">try</span><span class="s2">:</span>
+                <span class="s1">line </span><span class="s2">= </span><span class="s1">serial_inst</span><span class="s2">.</span><span class="s1">readline</span><span class="s2">()</span>
+                <span class="s0">if not </span><span class="s1">line</span><span class="s2">:</span>
+                    <span class="s0">continue</span>
+
+                <span class="s1">packet </span><span class="s2">= </span><span class="s1">line</span><span class="s2">.</span><span class="s1">decode</span><span class="s2">(</span><span class="s3">&quot;utf-8&quot;</span><span class="s2">, </span><span class="s1">errors</span><span class="s2">=</span><span class="s3">&quot;ignore&quot;</span><span class="s2">).</span><span class="s1">strip</span><span class="s2">()</span>
+
+                <span class="s0">if not </span><span class="s1">packet</span><span class="s2">.</span><span class="s1">startswith</span><span class="s2">(</span><span class="s3">&quot;+RCV=&quot;</span><span class="s2">):</span>
+                    <span class="s0">continue</span>
+
+                <span class="s1">json_start </span><span class="s2">= </span><span class="s1">packet</span><span class="s2">.</span><span class="s1">find</span><span class="s2">(</span><span class="s3">&quot;{&quot;</span><span class="s2">)</span>
+                <span class="s1">json_end </span><span class="s2">= </span><span class="s1">packet</span><span class="s2">.</span><span class="s1">rfind</span><span class="s2">(</span><span class="s3">&quot;}&quot;</span><span class="s2">) + </span><span class="s4">1</span>
+
+                <span class="s0">if </span><span class="s1">json_start </span><span class="s2">== -</span><span class="s4">1 </span><span class="s0">or </span><span class="s1">json_end </span><span class="s2">== -</span><span class="s4">1</span><span class="s2">:</span>
+                    <span class="s0">continue</span>
+
+                <span class="s1">json_str </span><span class="s2">= </span><span class="s1">packet</span><span class="s2">[</span><span class="s1">json_start</span><span class="s2">:</span><span class="s1">json_end</span><span class="s2">]</span>
+                <span class="s1">data </span><span class="s2">= </span><span class="s1">json</span><span class="s2">.</span><span class="s1">loads</span><span class="s2">(</span><span class="s1">json_str</span><span class="s2">)</span>
+
+                <span class="s1">required </span><span class="s2">= [</span><span class="s3">&quot;speed&quot;</span><span class="s2">, </span><span class="s3">&quot;rpm&quot;</span><span class="s2">, </span><span class="s3">&quot;voltage&quot;</span><span class="s2">, </span><span class="s3">&quot;satellites&quot;</span><span class="s2">, </span><span class="s3">&quot;status&quot;</span><span class="s2">]</span>
+                <span class="s0">if not </span><span class="s1">all</span><span class="s2">(</span><span class="s1">k </span><span class="s0">in </span><span class="s1">data </span><span class="s0">for </span><span class="s1">k </span><span class="s0">in </span><span class="s1">required</span><span class="s2">):</span>
+                    <span class="s0">continue</span>
+
+                <span class="s1">data</span><span class="s2">[</span><span class="s3">&quot;timestamp&quot;</span><span class="s2">] = </span><span class="s1">time</span><span class="s2">.</span><span class="s1">time</span><span class="s2">()</span>
+                <span class="s1">rolling_buffer</span><span class="s2">.</span><span class="s1">append</span><span class="s2">(</span><span class="s1">data</span><span class="s2">)</span>
+
+                <span class="s0">with </span><span class="s1">open</span><span class="s2">(</span><span class="s1">log_filename</span><span class="s2">, </span><span class="s3">&quot;a&quot;</span><span class="s2">) </span><span class="s0">as </span><span class="s1">f</span><span class="s2">:</span>
+                    <span class="s1">f</span><span class="s2">.</span><span class="s1">write</span><span class="s2">(</span><span class="s1">json</span><span class="s2">.</span><span class="s1">dumps</span><span class="s2">(</span><span class="s1">data</span><span class="s2">) + </span><span class="s3">&quot;</span><span class="s0">\n</span><span class="s3">&quot;</span><span class="s2">)</span>
+
+            <span class="s0">except </span><span class="s1">json</span><span class="s2">.</span><span class="s1">JSONDecodeError</span><span class="s2">:</span>
+                <span class="s0">continue</span>
+            <span class="s0">except </span><span class="s1">serial</span><span class="s2">.</span><span class="s1">SerialException </span><span class="s0">as </span><span class="s1">e</span><span class="s2">:</span>
+                <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;Serial disconnected: </span><span class="s0">{</span><span class="s1">e</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+                <span class="s0">break</span>
+            <span class="s0">except </span><span class="s1">Exception </span><span class="s0">as </span><span class="s1">e</span><span class="s2">:</span>
+                <span class="s1">print</span><span class="s2">(</span><span class="s3">f&quot;Unexpected error: </span><span class="s0">{</span><span class="s1">e</span><span class="s0">}</span><span class="s3">&quot;</span><span class="s2">)</span>
+                <span class="s0">continue</span>
+
+        <span class="s1">serial_thread_running </span><span class="s2">= </span><span class="s0">False</span>
+        <span class="s0">try</span><span class="s2">:</span>
+            <span class="s1">serial_inst</span><span class="s2">.</span><span class="s1">close</span><span class="s2">()</span>
+        <span class="s0">except </span><span class="s1">Exception</span><span class="s2">:</span>
+            <span class="s0">pass</span>
+
+    <span class="s1">threading</span><span class="s2">.</span><span class="s1">Thread</span><span class="s2">(</span><span class="s1">target</span><span class="s2">=</span><span class="s1">serial_reader</span><span class="s2">, </span><span class="s1">daemon</span><span class="s2">=</span><span class="s0">True</span><span class="s2">).</span><span class="s1">start</span><span class="s2">()</span>
+
+
+<span class="s0">def </span><span class="s1">get_com_ports</span><span class="s2">():</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">p</span><span class="s2">.</span><span class="s1">device </span><span class="s0">for </span><span class="s1">p </span><span class="s0">in </span><span class="s1">serial</span><span class="s2">.</span><span class="s1">tools</span><span class="s2">.</span><span class="s1">list_ports</span><span class="s2">.</span><span class="s1">comports</span><span class="s2">()]</span>
+</pre>
+</body>
+</html>

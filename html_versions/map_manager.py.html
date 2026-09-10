@@ -1,0 +1,67 @@
+<html>
+<head>
+<title>map_manager.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cf8e6d;}
+.s1 { color: #bcbec4;}
+.s2 { color: #bcbec4;}
+.s3 { color: #6aab73;}
+.s4 { color: #7a7e85;}
+.s5 { color: #5f826b; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#191a1c">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+map_manager.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">json</span>
+<span class="s0">import </span><span class="s1">os</span>
+
+<span class="s1">CONFIG_FILE </span><span class="s2">= </span><span class="s3">&quot;map_configs.json&quot;</span>
+
+<span class="s0">if not </span><span class="s1">os</span><span class="s2">.</span><span class="s1">path</span><span class="s2">.</span><span class="s1">exists</span><span class="s2">(</span><span class="s1">CONFIG_FILE</span><span class="s2">):</span>
+    <span class="s0">raise </span><span class="s1">FileNotFoundError</span><span class="s2">(</span><span class="s3">f&quot;</span><span class="s0">{</span><span class="s1">CONFIG_FILE</span><span class="s0">} </span><span class="s3">not found&quot;</span><span class="s2">)</span>
+
+<span class="s0">with </span><span class="s1">open</span><span class="s2">(</span><span class="s1">CONFIG_FILE</span><span class="s2">, </span><span class="s3">&quot;r&quot;</span><span class="s2">, </span><span class="s1">encoding</span><span class="s2">=</span><span class="s3">&quot;utf-8&quot;</span><span class="s2">) </span><span class="s0">as </span><span class="s1">f</span><span class="s2">:</span>
+    <span class="s1">MAP_CONFIGS </span><span class="s2">= </span><span class="s1">json</span><span class="s2">.</span><span class="s1">load</span><span class="s2">(</span><span class="s1">f</span><span class="s2">)[</span><span class="s3">&quot;maps&quot;</span><span class="s2">]  </span><span class="s4"># Load the list of maps</span>
+
+
+<span class="s0">def </span><span class="s1">get_map_names</span><span class="s2">():</span>
+    <span class="s5">&quot;&quot;&quot;Return list of map names.&quot;&quot;&quot;</span>
+    <span class="s0">return </span><span class="s2">[</span><span class="s1">m</span><span class="s2">[</span><span class="s3">&quot;name&quot;</span><span class="s2">] </span><span class="s0">for </span><span class="s1">m </span><span class="s0">in </span><span class="s1">MAP_CONFIGS</span><span class="s2">]</span>
+
+
+<span class="s0">def </span><span class="s1">get_map_config_by_name</span><span class="s2">(</span><span class="s1">map_name</span><span class="s2">):</span>
+    <span class="s5">&quot;&quot;&quot;Return map config dictionary for selected map.&quot;&quot;&quot;</span>
+    <span class="s0">for </span><span class="s1">m </span><span class="s0">in </span><span class="s1">MAP_CONFIGS</span><span class="s2">:</span>
+        <span class="s0">if </span><span class="s1">m</span><span class="s2">[</span><span class="s3">&quot;name&quot;</span><span class="s2">] == </span><span class="s1">map_name</span><span class="s2">:</span>
+            <span class="s0">return </span><span class="s1">m</span>
+    <span class="s0">return None</span>
+
+
+<span class="s0">def </span><span class="s1">latlon_to_pixels</span><span class="s2">(</span><span class="s1">lat</span><span class="s2">, </span><span class="s1">lon</span><span class="s2">, </span><span class="s1">map_cfg</span><span class="s2">):</span>
+    <span class="s5">&quot;&quot;&quot; 
+    Convert GPS coordinates to image pixel coordinates. 
+    (0,0) is top-left. 
+    &quot;&quot;&quot;</span>
+    <span class="s1">lat_top </span><span class="s2">= </span><span class="s1">map_cfg</span><span class="s2">[</span><span class="s3">&quot;top_left&quot;</span><span class="s2">][</span><span class="s3">&quot;lat&quot;</span><span class="s2">]</span>
+    <span class="s1">lon_left </span><span class="s2">= </span><span class="s1">map_cfg</span><span class="s2">[</span><span class="s3">&quot;top_left&quot;</span><span class="s2">][</span><span class="s3">&quot;lon&quot;</span><span class="s2">]</span>
+    <span class="s1">lat_bottom </span><span class="s2">= </span><span class="s1">map_cfg</span><span class="s2">[</span><span class="s3">&quot;bottom_right&quot;</span><span class="s2">][</span><span class="s3">&quot;lat&quot;</span><span class="s2">]</span>
+    <span class="s1">lon_right </span><span class="s2">= </span><span class="s1">map_cfg</span><span class="s2">[</span><span class="s3">&quot;bottom_right&quot;</span><span class="s2">][</span><span class="s3">&quot;lon&quot;</span><span class="s2">]</span>
+
+    <span class="s1">width </span><span class="s2">= </span><span class="s1">map_cfg</span><span class="s2">[</span><span class="s3">&quot;image_width&quot;</span><span class="s2">]</span>
+    <span class="s1">height </span><span class="s2">= </span><span class="s1">map_cfg</span><span class="s2">[</span><span class="s3">&quot;image_height&quot;</span><span class="s2">]</span>
+
+    <span class="s1">x_frac </span><span class="s2">= (</span><span class="s1">lon </span><span class="s2">- </span><span class="s1">lon_left</span><span class="s2">) / (</span><span class="s1">lon_right </span><span class="s2">- </span><span class="s1">lon_left</span><span class="s2">)</span>
+    <span class="s1">y_frac </span><span class="s2">= (</span><span class="s1">lat_top </span><span class="s2">- </span><span class="s1">lat</span><span class="s2">) / (</span><span class="s1">lat_top </span><span class="s2">- </span><span class="s1">lat_bottom</span><span class="s2">)</span>
+
+    <span class="s1">x </span><span class="s2">= </span><span class="s1">int</span><span class="s2">(</span><span class="s1">x_frac </span><span class="s2">* </span><span class="s1">width</span><span class="s2">)</span>
+    <span class="s1">y </span><span class="s2">= </span><span class="s1">int</span><span class="s2">(</span><span class="s1">y_frac </span><span class="s2">* </span><span class="s1">height</span><span class="s2">)</span>
+
+    <span class="s0">return </span><span class="s1">x</span><span class="s2">, </span><span class="s1">y</span>
+</pre>
+</body>
+</html>

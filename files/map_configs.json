@@ -1,0 +1,13 @@
+{
+  "maps": [
+    {
+      "id": "rolla_golf_course",
+      "name": "Rolla Golf Course",
+      "image": "golfcoursemap.png",
+      "image_width": 712,
+      "image_height": 419,
+      "top_left": { "lat": 37.950383, "lon": -91.787147 },
+      "bottom_right": { "lat": 37.947946, "lon": -91.781813 }
+    }
+  ]
+}
