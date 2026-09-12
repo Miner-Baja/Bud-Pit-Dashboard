@@ -19,11 +19,7 @@ def start_serial_reader(port, baudrate=115200):
         return
 
     try:
-        serial_inst = serial.Serial(
-            port=port,
-            baudrate=baudrate,
-            timeout=1
-        )
+        serial_inst = serial.Serial(port=port, baudrate=baudrate, timeout=1)
         serial_thread_running = True
         print(f"Connected to {port}")
 
