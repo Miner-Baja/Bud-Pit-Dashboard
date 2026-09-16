@@ -52,10 +52,10 @@
 #define RPM1_PIN       4    // DRV5013 engine RPM
 #define RPM2_PIN       5    // DRV5013 transmission RPM
 #define ONE_WIRE_PIN   6    // DS18B20 data
-#define DAQ_SW_PIN     7    // DAQ mode switch (pull HIGH to enable)
+#define DAQ_SW_PIN     14    // DAQ mode switch (pull HIGH to enable)
 #define RELAY_4WD_PIN  21    // 4WD relay output
 
-#define GPS_RX_PIN    18
+#define GPS_RX_PIN    19
 #define GPS_TX_PIN    17
 
 #define LORA_RX_PIN   16
@@ -303,12 +303,13 @@ void gpsSetNMEA(uint8_t msgId, bool enable) {
   gpsSendUBX(msg, 16);
 }
 
-void gpsInit() {
+
+  void gpsInit() {
   gpsSerial.begin(115200, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
   delay(1000);
-  gpsSetNMEA(0x01, false); // GLL off
-  gpsSetNMEA(0x03, false); // GSV off
-  gpsSetNMEA(0x05, false); // VTG off
+  //gpsSetNMEA(0x01, false); // GLL off
+  //gpsSetNMEA(0x03, false); // GSV off
+  //gpsSetNMEA(0x05, false); // VTG off
   gpsSetRate(10);
   Serial.println("[GPS] Ready: 115200 baud, 10Hz, lean NMEA");
 }
@@ -321,26 +322,13 @@ void onDataSent(const uint8_t *mac, esp_now_send_status_t status) {
 }
 
 void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
-  if (len != sizeof(DashboardCommand)) return;
-  DashboardCommand cmd;
-  memcpy(&cmd, data, len);
-
-  digitalWrite(RELAY_4WD_PIN, cmd.relayOn ? HIGH : LOW);
-  fourWDActive = cmd.swState;
-
-  // Only honour DAQ commands from dashboard/LoRa when the physical
-  // switch is NOT overriding — if the switch is on, DAQ stays on.
-  if (!daqSwitchActive) {
-    if      ( cmd.daqMode && !daqMode) startDAQ();
-    else if (!cmd.daqMode &&  daqMode) stopDAQ();
-  }
-
-  if (cmd.pitSignal) { pitSignal = true; pitSignalSetMs = millis(); }
-
+  if (len < 1) return;
+  bool swState = (bool)data[0];
+  fourWDActive = swState;
+  digitalWrite(RELAY_4WD_PIN, swState ? HIGH : LOW);
   lastDashRxMs  = millis();
   dashConnected = true;
 }
-
 // ============================================================
 //  DAQ
 // ============================================================
@@ -405,20 +393,25 @@ void writeDAQRow() {
 //  If switch goes LOW, allow normal DAQ stop logic.
 // ============================================================
 void checkDaqSwitch() {
-  bool swHigh = digitalRead(DAQ_SW_PIN) == HIGH;
+  static bool lastReading    = false;
+  static uint32_t lastChangeMs = 0;
+  
+  bool reading = digitalRead(DAQ_SW_PIN) == HIGH;
+  
+  if (reading != lastReading) {
+    lastChangeMs = millis();
+    lastReading  = reading;
+  }
 
-  if (swHigh && !daqSwitchActive) {
-    // Switch just turned on
+  if (millis() - lastChangeMs < 50) return;  // wait for stable reading
+
+  if (reading && !daqSwitchActive) {
     daqSwitchActive = true;
     Serial.println("[DAQ] Switch ON — forcing DAQ active");
     if (!daqMode) startDAQ();
-  } else if (!swHigh && daqSwitchActive) {
-    // Switch just turned off
+  } else if (!reading && daqSwitchActive) {
     daqSwitchActive = false;
-    Serial.println("[DAQ] Switch OFF — DAQ control returned to LoRa/dashboard");
-    // Stop DAQ unless dashboard/LoRa has independently requested it
-    // Since we have no persistent "remote requested" flag, we stop it
-    // and let the remote re-enable if it wants to
+    Serial.println("[DAQ] Switch OFF — DAQ control returned to LoRa");
     stopDAQ();
   }
 }
@@ -430,8 +423,9 @@ void loraInit() {
   loraSerial.begin(115200, SERIAL_8N1, LORA_RX_PIN, LORA_TX_PIN);
   delay(500);
   loraSerial.println("AT+NETWORKID=5");          delay(200);
+  loraSerial.println("AT+BAND=915000000");          delay(200);
   loraSerial.println("AT+ADDRESS=1");            delay(200);
-  loraSerial.println("AT+PARAMETER=10,7,1,22");  delay(200);
+  loraSerial.println("AT+PARAMETER=9,7,1,12");  delay(200);
   while (loraSerial.available()) Serial.println(loraSerial.readStringUntil('\n'));
   loraConnected = true;
   Serial.println("[LoRa] Ready: SF10, BW125, 22dBm");
@@ -461,7 +455,7 @@ void loraSendPacket() {
 }
 
 void loraHandleIncoming() {
-  if (!loraSerial.available()) return;
+  /*if (!loraSerial.available()) return;
   String line = loraSerial.readStringUntil('\n');
   if (!line.startsWith("+RCV=")) return;
   int c1 = line.indexOf(',');
@@ -470,13 +464,13 @@ void loraHandleIncoming() {
   if (line.substring(c1 + 1, c2).toInt() >= 1) {
     uint8_t cmd = (uint8_t)line[c2 + 1];
     // LoRa commands only take effect when physical switch is off
-    if (!daqSwitchActive) {
-      if      (cmd == 0x01 && !daqMode) startDAQ();
-      else if (cmd == 0x00 &&  daqMode) stopDAQ();
-    }
+   // if (!daqSwitchActive) {
+      //if      (cmd == 0x01 && !daqMode) startDAQ();
+      //else if (cmd == 0x00 &&  daqMode) stopDAQ();
+    //}
     if (cmd == 0x02) { pitSignal = true; pitSignalSetMs = millis(); }
     loraConnected = true;
-  }
+  }*/
 }
 
 // ============================================================
@@ -584,12 +578,12 @@ void sendToDashboard() {
   t.voltage       = batteryVoltage;
   t.satCount      = gpsSats;
   strlcpy(t.driveMode, fourWDActive ? "4WD" : "2WD", 4);
-  t.wheelLF       = true;
-  t.wheelRF       = true;
+  t.wheelLF       = fourWDActive;
+  t.wheelRF       = fourWDActive;
   t.wheelRL       = true;
   t.wheelRR       = true;
-  t.diffFront     = false;
-  t.diffRear      = false;
+  t.diffFront     = fourWDActive;
+  t.diffRear      = true;
   t.wifiConn      = dashConnected;
   t.loraConn      = loraConnected;
   t.odometer      = (int)(odometerFeet / 5280);
@@ -680,9 +674,11 @@ void setup() {
 
   // GPIO
   pinMode(RPM1_PIN,      INPUT_PULLUP);
+  pinMode(48, OUTPUT);
+  digitalWrite(48, LOW);
   pinMode(RPM2_PIN,      INPUT_PULLUP);
   pinMode(RELAY_4WD_PIN, OUTPUT);
-  pinMode(DAQ_SW_PIN,    INPUT);        // external pulldown — HIGH = DAQ on
+  pinMode(DAQ_SW_PIN, INPUT_PULLDOWN);    // external pulldown — HIGH = DAQ on
   digitalWrite(RELAY_4WD_PIN, LOW);
 
   attachInterrupt(digitalPinToInterrupt(RPM1_PIN), rpm1ISR, FALLING);
