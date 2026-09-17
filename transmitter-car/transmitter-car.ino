@@ -450,7 +450,7 @@ void loraSendPacket() {
   pkt.awd  = fourWDActive ? 1 : 0;
   pkt.crc16 = crc16_modbus((uint8_t*)&pkt, 78);
   loraSerial.print("AT+SEND=2,80,");
-  loraSerial.write((uint8_t*)&pkt, 80);
+  loraSerial.write((uint8_t*)&pkt, sizeof(pkt));
   loraSerial.print("\r\n");
 }
 
