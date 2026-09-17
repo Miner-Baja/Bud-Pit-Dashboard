@@ -445,6 +445,7 @@ void loraSendPacket() {
     pkt.r2[i] = loraBufR2[i];
     pkt.v[i]  = loraBufV[i];
   }
+  
   pkt.t1   = (uint8_t)constrain((int)temp1C + 40, 0, 255);
   pkt.t2   = 40;  // 0°C offset = no sensor, sends 40 (0°C) as placeholder
   pkt.bat  = (uint16_t)(batteryVoltage * 100);
@@ -456,7 +457,7 @@ void loraSendPacket() {
   pkt.awd  = fourWDActive ? 1 : 0;
   pkt.crc16 = crc16_modbus((uint8_t*)&pkt, 78);
   loraSerial.print("AT+SEND=2,80,");
-  loraSerial.write((uint8_t*)&pkt, 80);
+  loraSerial.write((uint8_t*)&pkt, sizeof(pkt));
   loraSerial.print("\r\n");
 }
 
