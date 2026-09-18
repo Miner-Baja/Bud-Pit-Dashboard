@@ -125,9 +125,9 @@ typedef struct {
 } DashboardCommand;
 
 typedef struct {
-  uint16_t r1[10];
-  uint16_t r2[10];
-  uint16_t v[10];
+  //uint16_t r1[10];
+  //uint16_t r2[10];
+  //uint16_t v[10];
   uint8_t  t1;
   uint8_t  t2;
   uint16_t bat;
@@ -209,9 +209,9 @@ uint32_t lastLoraTxMs   = 0;
 
 // LoRa 10Hz ring buffer
 #define LORA_SAMPLES 10
-uint16_t loraBufR1[LORA_SAMPLES] = {};
-uint16_t loraBufR2[LORA_SAMPLES] = {};
-uint16_t loraBufV[LORA_SAMPLES]  = {};
+//uint16_t loraBufR1[LORA_SAMPLES] = {};
+//uint16_t loraBufR2[LORA_SAMPLES] = {};
+//uint16_t loraBufV[LORA_SAMPLES]  = {};
 int32_t  loraLat1         = 0;
 int32_t  loraLon1         = 0;
 uint8_t  loraSampleIdx    = 0;
@@ -435,11 +435,11 @@ void loraInit() {
 void loraSendPacket() {
   LoRaPacket pkt;
   memset(&pkt, 0, sizeof(pkt));
-  for (int i = 0; i < LORA_SAMPLES; i++) {
-    pkt.r1[i] = loraBufR1[i];
-    pkt.r2[i] = loraBufR2[i];
-    pkt.v[i]  = loraBufV[i];
-  }
+  //for (int i = 0; i < LORA_SAMPLES; i++) {
+    //pkt.r1[i] = loraBufR1[i];
+  //  pkt.r2[i] = loraBufR2[i];
+  //  pkt.v[i]  = loraBufV[i];
+  //}
   
   pkt.t1   = (uint8_t)constrain((int)temp1C + 40, 0, 255);
   pkt.t2   = 40;  // 0°C offset = no sensor, sends 40 (0°C) as placeholder
@@ -564,9 +564,9 @@ void pushLoraSample() {
   if (now - lastLoraSampleMs < 100) return;
   lastLoraSampleMs = now;
   int idx = loraSampleIdx++ % LORA_SAMPLES;
-  loraBufR1[idx] = (uint16_t)constrain((int)currentRpm1, 0, 65535);
-  loraBufR2[idx] = (uint16_t)constrain((int)currentRpm2, 0, 65535);
-  loraBufV[idx]  = (uint16_t)(gpsSpeedMph * 10.0f);
+  //loraBufR1[idx] = (uint16_t)constrain((int)currentRpm1, 0, 65535);
+  //loraBufR2[idx] = (uint16_t)constrain((int)currentRpm2, 0, 65535);
+  //loraBufV[idx]  = (uint16_t)(gpsSpeedMph * 10.0f);
 }
 
 // ============================================================
