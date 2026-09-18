@@ -315,18 +315,19 @@ void gpsSetNMEA(uint8_t msgId, bool enable) {
 }
 
 // ============================================================
-//  ESP-NOW CALLBACKS  (core 2.x signatures)
+//  ESP-NOW CALLBACKS
 // ============================================================
-void onDataSent(const uint8_t *mac, esp_now_send_status_t status) {
+void onDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
   if (status == ESP_NOW_SEND_SUCCESS) dashConnected = true;
 }
 
-void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
+void onDataRecv(const esp_now_recv_info *info, const uint8_t *data, int len) {
   if (len < 1) return;
+
   bool swState = (bool)data[0];
   fourWDActive = swState;
   digitalWrite(RELAY_4WD_PIN, swState ? HIGH : LOW);
-  lastDashRxMs  = millis();
+  lastDashRxMs = millis();
   dashConnected = true;
 }
 // ============================================================
