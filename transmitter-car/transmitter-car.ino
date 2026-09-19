@@ -137,7 +137,7 @@ typedef struct {
   int32_t  lat2;
   int32_t  lon2;
   uint8_t  awd;
-  uint16_t crc16;
+  //uint16_t crc16;
 } LoRaPacket;
 
 #pragma pack(pop)
@@ -237,7 +237,7 @@ void IRAM_ATTR rpm2ISR() { rpm2PulseCount++; }
 // ============================================================
 //  CRC16 MODBUS
 // ============================================================
-uint16_t crc16_modbus(uint8_t *data, size_t len) {
+/*uint16_t crc16_modbus(uint8_t *data, size_t len) {
   uint16_t crc = 0xFFFF;
   for (size_t i = 0; i < len; i++) {
     crc ^= data[i];
@@ -247,7 +247,7 @@ uint16_t crc16_modbus(uint8_t *data, size_t len) {
     }
   }
   return crc;
-}
+}*/
 
 // ============================================================
 //  GPS UBX HELPERS
@@ -448,9 +448,9 @@ void loraSendPacket() {
   pkt.lat2 = (int32_t)(gpsLat * 10000000.0);
   pkt.lon2 = (int32_t)(gpsLon * 10000000.0);
   pkt.awd  = fourWDActive ? 1 : 0;
-  pkt.crc16 = crc16_modbus((uint8_t*)&pkt, 78);
+  //pkt.crc16 = crc16_modbus((uint8_t*)&pkt, 78);
   loraSerial.print("AT+SEND=2,80,");
-  loraSerial.write((uint8_t*)&pkt, 80);
+  loraSerial.write((uint8_t*)&pkt, sizeof(pkt));
   loraSerial.print("\r\n");
 }
 
