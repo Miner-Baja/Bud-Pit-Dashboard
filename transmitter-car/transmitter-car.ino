@@ -315,19 +315,18 @@ void gpsSetNMEA(uint8_t msgId, bool enable) {
 }
 
 // ============================================================
-//  ESP-NOW CALLBACKS
+//  ESP-NOW CALLBACKS  (core 2.x signatures)
 // ============================================================
-void onDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
+void onDataSent(const uint8_t *mac, esp_now_send_status_t status) {
   if (status == ESP_NOW_SEND_SUCCESS) dashConnected = true;
 }
 
-void onDataRecv(const esp_now_recv_info *info, const uint8_t *data, int len) {
+void onDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
   if (len < 1) return;
-
   bool swState = (bool)data[0];
   fourWDActive = swState;
   digitalWrite(RELAY_4WD_PIN, swState ? HIGH : LOW);
-  lastDashRxMs = millis();
+  lastDashRxMs  = millis();
   dashConnected = true;
 }
 // ============================================================
@@ -440,7 +439,6 @@ void loraSendPacket() {
     pkt.r2[i] = loraBufR2[i];
     pkt.v[i]  = loraBufV[i];
   }
-  
   pkt.t1   = (uint8_t)constrain((int)temp1C + 40, 0, 255);
   pkt.t2   = 40;  // 0°C offset = no sensor, sends 40 (0°C) as placeholder
   pkt.bat  = (uint16_t)(batteryVoltage * 100);
